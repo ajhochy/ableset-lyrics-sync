@@ -1,3 +1,6 @@
+// Verify shared types are reachable from the client — type-only import, no runtime cost.
+import type {} from '../../shared/types';
+
 export function App() {
   return (
     <div style={{ fontFamily: 'sans-serif', padding: '2rem' }}>

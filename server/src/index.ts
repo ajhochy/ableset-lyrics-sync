@@ -1,4 +1,6 @@
 import http from 'node:http';
+// Verify shared types are reachable from the server — type-only import, no runtime cost.
+import type {} from '../../shared/types';
 
 const HOST = '127.0.0.1';
 const PORT = 7878;
