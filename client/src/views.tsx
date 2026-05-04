@@ -10,7 +10,7 @@ import {
   TweakToggle,
 } from './tweaks-panel';
 import { fmt } from './format';
-import { SAMPLE_SONG, LEADSHEET_PAGES } from './data';
+import { LEADSHEET_PAGES } from './data';
 import { type Tweaks } from './use-tweaks';
 
 export type { Tweaks };
@@ -42,6 +42,10 @@ export interface LyricsViewProps {
   songName: string;
   setSongName: (name: string) => void;
   pasteText: string;
+  setPasteText: (text: string) => void;
+  onReload: () => void | Promise<void>;
+  reloading: boolean;
+  lineCount: number;
   setupOpen: boolean;
   setSetupOpen: (open: boolean) => void;
   currentLine: string | undefined;
@@ -58,7 +62,7 @@ export interface LyricsViewProps {
 
 export const LyricsView: React.FC<LyricsViewProps> = (props) => {
   const {
-    songName, setSongName, pasteText,
+    songName, setSongName, pasteText, setPasteText, onReload, reloading, lineCount,
     setupOpen, setSetupOpen,
     currentLine, currentSection, nextLine,
     lineIndex, lineTotal,
@@ -81,7 +85,7 @@ export const LyricsView: React.FC<LyricsViewProps> = (props) => {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="meta" style={{ color: 'var(--fg-3)' }}>
-              ChordPro · {SAMPLE_SONG.lines.length} lines
+              ChordPro · {lineCount} lines
             </span>
             <span className="meta">{setupOpen ? 'Hide' : 'Edit'}</span>
           </div>
@@ -98,12 +102,21 @@ export const LyricsView: React.FC<LyricsViewProps> = (props) => {
             </div>
             <div className="field">
               <label className="field-label">Lyrics (ChordPro)</label>
-              <textarea className="textarea" defaultValue={pasteText} rows={4} />
+              <textarea
+                className="textarea"
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                rows={4}
+              />
             </div>
             <div className="actions">
-              <button className="btn primary">
+              <button
+                className="btn primary"
+                onClick={onReload}
+                disabled={reloading}
+              >
                 <Icon name="music" size={12} />
-                Reload song
+                {reloading ? 'Loading…' : 'Reload song'}
               </button>
             </div>
           </div>

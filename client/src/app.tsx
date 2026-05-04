@@ -20,6 +20,7 @@ import {
 import { LyricsView, LeadsheetView, TweaksUI, type StampRow } from './views';
 import { useTweaks, type Tweaks } from './use-tweaks';
 import { useLive } from './use-live';
+import type { Song } from '../../shared/types';
 
 // ---------------------------------------------------------------------------
 // Tweak defaults — must match Tweaks type from use-tweaks.ts.
@@ -43,10 +44,12 @@ export function App() {
   // ---- App state ----
   const [tab, setTab] = useState<'lyrics' | 'leadsheet'>('lyrics');
   const [setupOpen, setSetupOpen] = useState<boolean>(false);
+  const [song, setSong] = useState<Song>(SAMPLE_SONG);
   const [songName, setSongName] = useState<string>(SAMPLE_SONG.name);
-  const [pasteText] = useState<string>(
+  const [pasteText, setPasteText] = useState<string>(
     `{title: ${SAMPLE_SONG.name}}\n{key: G}\n\n[Verse 1]\n[Verse 1 line 1]\n[Verse 1 line 2]\n…`,
   );
+  const [reloading, setReloading] = useState<boolean>(false);
 
   // Playback — driven by WebSocket (#17) and controlled via WebSocket (#18)
   const { state: liveState, sendCommand } = useLive();
@@ -82,43 +85,43 @@ export function App() {
 
   // ---- Cursor lookup helpers ----
   const lineCount = useMemo(
-    () => SAMPLE_SONG.lines.filter((l) => l.text).length,
-    [],
+    () => song.lines.filter((l) => l.text).length,
+    [song],
   );
 
   const lineIndexOfCursor = useMemo(() => {
     let n = 0;
-    for (let i = 0; i < SAMPLE_SONG.lines.length; i++) {
-      if (SAMPLE_SONG.lines[i].text) {
+    for (let i = 0; i < song.lines.length; i++) {
+      if (song.lines[i].text) {
         n++;
         if (i === cursor) return n;
       }
     }
     return n;
-  }, [cursor]);
+  }, [cursor, song]);
 
-  const currentLineObj = SAMPLE_SONG.lines[cursor] ?? {};
+  const currentLineObj = song.lines[cursor] ?? {};
 
-  const findNextTextLine = (from: number, dir: number): number | null => {
+  const findNextTextLine = useCallback((from: number, dir: number): number | null => {
     let i = from + dir;
-    while (i >= 0 && i < SAMPLE_SONG.lines.length) {
-      if (SAMPLE_SONG.lines[i].text) return i;
+    while (i >= 0 && i < song.lines.length) {
+      if (song.lines[i].text) return i;
       i += dir;
     }
     return null;
-  };
+  }, [song]);
 
-  const nextTextIdx = useMemo(() => findNextTextLine(cursor, 1), [cursor]);
+  const nextTextIdx = useMemo(() => findNextTextLine(cursor, 1), [cursor, findNextTextLine]);
   const nextLine =
-    nextTextIdx != null ? (SAMPLE_SONG.lines[nextTextIdx]?.text ?? null) : null;
+    nextTextIdx != null ? (song.lines[nextTextIdx]?.text ?? null) : null;
 
   // Section header (preceding) for current line
   const currentSectionLabel = useMemo(() => {
     for (let i = cursor; i >= 0; i--) {
-      if (SAMPLE_SONG.lines[i].section) return SAMPLE_SONG.lines[i].section ?? null;
+      if (song.lines[i].section) return song.lines[i].section ?? null;
     }
     return null;
-  }, [cursor]);
+  }, [cursor, song]);
 
   // ---- Stamp actions ----
   const stamp = useCallback(
@@ -144,13 +147,53 @@ export function App() {
       const target = findNextTextLine(cursor, advance >= 0 ? 1 : -1);
       if (target != null) setCursor(target);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cursor, time, currentLineObj.text, currentSectionLabel],
+    [cursor, time, currentLineObj.text, currentSectionLabel, findNextTextLine],
   );
 
   const undoStamp = useCallback((i: number) => {
     setStamps((arr) => arr.filter((_, j) => j !== i));
   }, []);
+
+  // onReload — POST /api/song with current songName + pasteText, replace song state.
+  const onReload = useCallback(async () => {
+    setReloading(true);
+    try {
+      const res = await fetch('/api/song', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: songName, chordpro: pasteText }),
+      });
+      if (!res.ok) {
+        let errMsg = 'Unknown error';
+        try {
+          const body = await res.json() as { error?: string; message?: string };
+          errMsg = body.error ?? body.message ?? errMsg;
+        } catch {
+          // body not JSON — use status text
+          errMsg = res.statusText || errMsg;
+        }
+        pushToast(`Failed to parse: ${errMsg}`);
+        return;
+      }
+      let parsed: Song;
+      try {
+        parsed = await res.json() as Song;
+      } catch {
+        pushToast('Backend returned malformed JSON');
+        return;
+      }
+      setSong(parsed);
+      setSongName(parsed.name);
+      setCursor(0);
+      setStamps([]);
+      const textLines = parsed.lines.filter((l) => l.text).length;
+      pushToast(`Loaded ${parsed.name}`, `${textLines} lines`);
+    } catch {
+      pushToast('Backend unreachable');
+    } finally {
+      setReloading(false);
+    }
+  }, [songName, pasteText, pushToast]);
 
   // exportFile — no-op + toast; real export lands in #21/#22
   const exportFile = useCallback(() => {
@@ -218,7 +261,7 @@ export function App() {
     const rows: StampRow[] = [];
     let lastSection: string | null = null;
     stamps.forEach((s, i) => {
-      const lineObj = SAMPLE_SONG.lines[s.idx];
+      const lineObj = song.lines[s.idx];
       const sec = s.sectionStart ?? null;
       if (tweaks.showSectionHeaders && sec && sec !== lastSection) {
         rows.push({ kind: 'section', label: sec, key: `sec-${i}` });
@@ -236,7 +279,7 @@ export function App() {
       });
     });
     return rows;
-  }, [stamps, flashIdx, tweaks.showSectionHeaders]);
+  }, [stamps, flashIdx, tweaks.showSectionHeaders, song]);
 
   return (
     <div className="app">
@@ -270,7 +313,7 @@ export function App() {
             <span className="val">{liveBpm}</span>
             <span className="label">BPM</span>
             <span className="dot-sep" />
-            <span className="val">{SAMPLE_SONG.key}</span>
+            <span className="val">{song.key}</span>
             <span className="label">KEY</span>
           </span>
         </div>
@@ -305,6 +348,10 @@ export function App() {
             songName={songName}
             setSongName={setSongName}
             pasteText={pasteText}
+            setPasteText={setPasteText}
+            onReload={onReload}
+            reloading={reloading}
+            lineCount={lineCount}
             setupOpen={setupOpen}
             setSetupOpen={setSetupOpen}
             currentLine={currentLineObj.text}
