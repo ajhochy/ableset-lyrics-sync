@@ -195,11 +195,62 @@ export function App() {
     }
   }, [songName, pasteText, pushToast]);
 
-  // exportFile — no-op + toast; real export lands in #21/#22
+  // exportLyrics — POST /api/export/als and trigger browser download.
+  const exportLyrics = useCallback(async () => {
+    const filename = `${song.name.replace(/\s+/g, '_')}.als`;
+    const payload = {
+      song,
+      stamps: stamps.map((s, i) => ({
+        id: `stamp-${i}-${s.ts}`,
+        lineIdx: s.idx,
+        lineText: song.lines[s.idx]?.text ?? '',
+        section: s.sectionStart ?? null,
+        ts: s.ts,
+        beats: 0,
+      })),
+    };
+    try {
+      const res = await fetch('/api/export/als', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        let errMsg = 'Unknown error';
+        try {
+          const body = await res.json() as { error?: string; message?: string };
+          errMsg = body.error ?? body.message ?? errMsg;
+        } catch {
+          errMsg = res.statusText || errMsg;
+        }
+        pushToast(`Export failed: ${errMsg}`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      pushToast(`Exported ${filename}`, `${stamps.length} clips`);
+    } catch {
+      pushToast('Export failed: backend unreachable');
+    }
+  }, [song, stamps, pushToast]);
+
+  // exportLeadsheet — stub; real export lands in #22
+  const exportLeadsheet = useCallback(() => {
+    pushToast(`Exported ${song.name.replace(/\s+/g, '_')}.zip`, `${stamps.length} clips`);
+  }, [song.name, stamps.length, pushToast]);
+
   const exportFile = useCallback(() => {
-    const ext = tab === 'lyrics' ? '.als' : '.zip';
-    pushToast(`Exported ${songName.replace(/\s+/g, '_')}${ext}`, `${stamps.length} clips`);
-  }, [tab, songName, stamps.length, pushToast]);
+    if (tab === 'lyrics') {
+      void exportLyrics();
+    } else {
+      exportLeadsheet();
+    }
+  }, [tab, exportLyrics, exportLeadsheet]);
 
   // ---- Keyboard handler ----
   useEffect(() => {
