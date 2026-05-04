@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@types/node-osc": "^10.0.0",
+    "chordsheetjs": "^14.5.1",
     "fast-xml-parser": "^5.7.2",
     "node-osc": "^11.4.0",
     "react": "^18.3.1",
