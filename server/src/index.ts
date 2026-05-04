@@ -1,13 +1,11 @@
 import http from 'node:http';
-// Verify shared types are reachable from the server — type-only import, no runtime cost.
-import type {} from '../../shared/types';
 import { OscClient } from './osc-client.js';
+import { attachWebSocketServer } from './ws-server.js';
 
 const HOST = '127.0.0.1';
 const PORT = 7878;
 
 // Instantiate and start the OSC client on server boot.
-// The WebSocket broadcast layer (#7) will subscribe to 'tick' and 'connection' events.
 const oscClient = new OscClient();
 
 oscClient.on('connection', ({ connected }) => {
@@ -27,6 +25,10 @@ const server = http.createServer((req, res) => {
   res.end(JSON.stringify({ error: 'Not found' }));
 });
 
+// Attach the WebSocket broadcast server on the same HTTP server at path /live.
+attachWebSocketServer(server, oscClient);
+
 server.listen(PORT, HOST, () => {
   console.log(`AbleSet Sync server listening on :${PORT}`);
+  console.log(`WebSocket endpoint: ws://${HOST}:${PORT}/live`);
 });
