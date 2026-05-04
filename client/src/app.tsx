@@ -239,16 +239,84 @@ export function App() {
     }
   }, [song, stamps, pushToast]);
 
-  // exportLeadsheet — stub; real export lands in #22
-  const exportLeadsheet = useCallback(() => {
-    pushToast(`Exported ${song.name.replace(/\s+/g, '_')}.zip`, `${stamps.length} clips`);
-  }, [song.name, stamps.length, pushToast]);
+  // exportLeadsheet — POST /api/export/zip with PNG data URLs for each stamped page.
+  const [exportingLeadsheet, setExportingLeadsheet] = useState<boolean>(false);
+
+  const exportLeadsheet = useCallback(async () => {
+    if (!pdfFile) {
+      pushToast('No PDF loaded');
+      return;
+    }
+    if (leadsheetStamps.length === 0) {
+      pushToast('No stamps to export');
+      return;
+    }
+
+    setExportingLeadsheet(true);
+    pushToast('Rendering pages…');
+
+    try {
+      // Dedupe pages and render each exactly once.
+      const uniquePages = [...new Set(leadsheetStamps.map((s) => s.page))];
+      const pageDataUrls = new Map<number, string>();
+      for (const page of uniquePages) {
+        pageDataUrls.set(page, await pageRenderer.renderToDataUrl(page));
+      }
+
+      const sheetStamps = leadsheetStamps.map((s, i) => ({
+        id: `sheet-${i}-${s.ts}`,
+        page: s.page,
+        region: s.region ?? '',
+        imageRef: `page${s.page}.png`,
+        pngDataUrl: pageDataUrls.get(s.page)!,
+        ts: s.ts,
+      }));
+
+      const filename = `${song.name.replace(/\s+/g, '_')}.zip`;
+
+      const res = await fetch('/api/export/zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ song, stamps: sheetStamps }),
+      });
+
+      if (!res.ok) {
+        let errMsg = 'Unknown error';
+        try {
+          const body = await res.json() as { error?: string; message?: string };
+          errMsg = body.error ?? body.message ?? errMsg;
+        } catch {
+          errMsg = res.statusText || errMsg;
+        }
+        pushToast(`Export failed: ${errMsg}`);
+        return;
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      const downloadName = match?.[1] ?? filename;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = downloadName;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      pushToast(`Exported ${downloadName}`, `${leadsheetStamps.length} stamps`);
+    } catch {
+      pushToast('Export failed: backend unreachable');
+    } finally {
+      setExportingLeadsheet(false);
+    }
+  }, [pdfFile, leadsheetStamps, pageRenderer, song, pushToast]);
 
   const exportFile = useCallback(() => {
     if (tab === 'lyrics') {
       void exportLyrics();
     } else {
-      exportLeadsheet();
+      void exportLeadsheet();
     }
   }, [tab, exportLyrics, exportLeadsheet]);
 
@@ -405,9 +473,15 @@ export function App() {
         </div>
 
         <div className="header-actions">
-          <button className="btn primary" onClick={exportFile}>
+          <button
+            className="btn primary"
+            onClick={exportFile}
+            disabled={tab === 'leadsheet' && exportingLeadsheet}
+          >
             <Icon name="download" size={12} />
-            Export {tab === 'lyrics' ? '.als' : '.zip'}
+            {tab === 'leadsheet' && exportingLeadsheet
+              ? 'Exporting…'
+              : `Export ${tab === 'lyrics' ? '.als' : '.zip'}`}
           </button>
         </div>
       </header>
