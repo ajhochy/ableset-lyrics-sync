@@ -18,10 +18,11 @@ import {
   type InitialStamp,
   type InitialLeadsheetStamp,
 } from './data';
-import { LyricsView, LeadsheetView, TweaksUI, type StampRow, type Tweaks } from './views';
+import { LyricsView, LeadsheetView, TweaksUI, type StampRow } from './views';
+import { useTweaks, type Tweaks } from './use-tweaks';
 
 // ---------------------------------------------------------------------------
-// Inline useTweaks stub — real localStorage persistence lands in #16.
+// Tweak defaults — must match Tweaks type from use-tweaks.ts.
 // ---------------------------------------------------------------------------
 const TWEAK_DEFAULTS: Tweaks = {
   theme: 'dark',
@@ -32,20 +33,6 @@ const TWEAK_DEFAULTS: Tweaks = {
   showSectionHeaders: true,
   connectionStatus: 'connected',
 };
-
-function useTweaks(
-  defaults: Tweaks,
-): [Tweaks, (key: keyof Tweaks, value: Tweaks[keyof Tweaks]) => void] {
-  const [values, setValues] = useState<Tweaks>(defaults);
-  const setTweak = useCallback(
-    (key: keyof Tweaks, value: Tweaks[keyof Tweaks]) => {
-      setValues((prev) => ({ ...prev, [key]: value }));
-      // TODO (#16): persist to localStorage
-    },
-    [],
-  );
-  return [values, setTweak];
-}
 
 // ---------------------------------------------------------------------------
 // App
@@ -248,14 +235,6 @@ export function App() {
     return rows;
   }, [stamps, flashIdx, tweaks.showSectionHeaders]);
 
-  // ---- Adapter: setTweak for TweaksUI (string key) ----
-  const setTweakForUI = useCallback(
-    (key: string, value: unknown) => {
-      setTweak(key as keyof Tweaks, value as Tweaks[keyof Tweaks]);
-    },
-    [setTweak],
-  );
-
   return (
     <div className="app">
       {/* HEADER */}
@@ -397,7 +376,7 @@ export function App() {
       </div>
 
       {/* TWEAKS */}
-      <TweaksUI tweaks={tweaks} setTweak={setTweakForUI} />
+      <TweaksUI tweaks={tweaks} setTweak={setTweak} />
     </div>
   );
 }

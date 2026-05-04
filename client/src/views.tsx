@@ -11,19 +11,9 @@ import {
 } from './tweaks-panel';
 import { fmt } from './format';
 import { SAMPLE_SONG, LEADSHEET_PAGES } from './data';
+import { type Tweaks } from './use-tweaks';
 
-// ---------------------------------------------------------------------------
-// Shared tweak-state shape used by both views.
-// ---------------------------------------------------------------------------
-export interface Tweaks {
-  theme: string;
-  accent: string;
-  headerCompact: boolean;
-  lyricSize: string;
-  logDensity: string;
-  showSectionHeaders: boolean;
-  connectionStatus: string;
-}
+export type { Tweaks };
 
 // ---------------------------------------------------------------------------
 // Stamp-log row types (rendered by LyricsView).
@@ -302,7 +292,7 @@ export const LeadsheetView: React.FC<LeadsheetViewProps> = ({
 // ---------------------------------------------------------------------------
 export interface TweaksUIProps {
   tweaks: Tweaks;
-  setTweak: (key: string, value: unknown) => void;
+  setTweak: (key: keyof Tweaks, value: Tweaks[keyof Tweaks]) => void;
 }
 
 export const TweaksUI: React.FC<TweaksUIProps> = ({ tweaks, setTweak }) => (
@@ -311,7 +301,7 @@ export const TweaksUI: React.FC<TweaksUIProps> = ({ tweaks, setTweak }) => (
       <TweakRadio
         label="Color theme"
         value={tweaks.theme}
-        onChange={(v) => setTweak('theme', v)}
+        onChange={(v) => setTweak('theme', v as Tweaks['theme'])}
         options={[
           { label: 'Dark', value: 'dark' },
           { label: 'Light', value: 'light' },
@@ -320,7 +310,7 @@ export const TweaksUI: React.FC<TweaksUIProps> = ({ tweaks, setTweak }) => (
       <TweakSelect
         label="Accent color"
         value={tweaks.accent}
-        onChange={(v) => setTweak('accent', v)}
+        onChange={(v) => setTweak('accent', v as Tweaks['accent'])}
         options={[
           { label: 'Teal (default)', value: 'teal' },
           { label: 'Amber', value: 'amber' },
@@ -339,7 +329,7 @@ export const TweaksUI: React.FC<TweaksUIProps> = ({ tweaks, setTweak }) => (
       <TweakRadio
         label="Current-line size"
         value={tweaks.lyricSize}
-        onChange={(v) => setTweak('lyricSize', v)}
+        onChange={(v) => setTweak('lyricSize', v as Tweaks['lyricSize'])}
         options={[
           { label: 'Balanced', value: 'balanced' },
           { label: 'Massive', value: 'massive' },
@@ -348,7 +338,7 @@ export const TweaksUI: React.FC<TweaksUIProps> = ({ tweaks, setTweak }) => (
       <TweakRadio
         label="Stamp log density"
         value={tweaks.logDensity}
-        onChange={(v) => setTweak('logDensity', v)}
+        onChange={(v) => setTweak('logDensity', v as Tweaks['logDensity'])}
         options={[
           { label: 'Tight', value: 'tight' },
           { label: 'Spacious', value: 'spacious' },
@@ -365,7 +355,7 @@ export const TweaksUI: React.FC<TweaksUIProps> = ({ tweaks, setTweak }) => (
       <TweakRadio
         label="Connection"
         value={tweaks.connectionStatus}
-        onChange={(v) => setTweak('connectionStatus', v)}
+        onChange={(v) => setTweak('connectionStatus', v as Tweaks['connectionStatus'])}
         options={[
           { label: 'Connected', value: 'connected' },
           { label: 'Disconnected', value: 'disconnected' },
